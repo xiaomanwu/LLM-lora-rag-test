@@ -39,9 +39,10 @@ def load_model(cfg, adapter_path: str | None = None):
     The adapter is kept separate (not merged) so the very same base weights back
     the ``prompt_only``/``rag`` arms and the ``sft``/``sft_rag`` arms.
     """
-    from vlab.config import setup_hf_endpoint
+    from vlab.config import resolve_device, setup_hf_endpoint
 
     setup_hf_endpoint(cfg.hf_endpoint)
+    device = resolve_device(cfg.device)
     dtype = _dtype(cfg.model.dtype)
     kwargs: dict[str, Any] = {"dtype": dtype}
     if cfg.model.attn_implementation:
@@ -59,7 +60,9 @@ def load_model(cfg, adapter_path: str | None = None):
 
         LOGGER.info("attaching LoRA adapter from %s", adapter_path)
         model = PeftModel.from_pretrained(model, adapter_path, is_trainable=False)
+    model.to(device)
     model.eval()
+    LOGGER.info("loaded model on %s", device)
     return model
 
 

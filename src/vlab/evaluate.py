@@ -178,9 +178,9 @@ def render_report(rows: list[dict], cfg, extra: dict | None = None) -> str:
             f"({base['accuracy']:.3f} -> {sft['accuracy']:.3f}): knowledge pushed into the weights."
         )
         bullets.append(
-            f"- It also fixes *behaviour*: output-format compliance goes from "
-            f"{base['format_compliance']:.0%} to {sft['format_compliance']:.0%}. The base model knows "
-            "roughly what to say but not how to say it in the required shape."
+            f"- Output-format compliance goes from {base['format_compliance']:.0%} to "
+            f"{sft['format_compliance']:.0%}; this shows improved format adherence, not improved "
+            "answer correctness."
         )
     if sft and rag:
         combined = by_arm.get("sft_rag")
@@ -191,9 +191,10 @@ def render_report(rows: list[dict], cfg, extra: dict | None = None) -> str:
             )
     if rag and gold:
         bullets.append(
-            f"- The oracle arm (gold abstract given) reaches **{gold['accuracy']:.3f}**, so the "
-            f"retriever currently recovers {max(gold['accuracy'] - rag['accuracy'], 0) * 100:.1f} pts "
-            "of headroom: retrieval quality, not the generator, is the bottleneck."
+            f"- With the gold abstract supplied, the oracle arm reaches **{gold['accuracy']:.3f}**, "
+            f"{(gold['accuracy'] - rag['accuracy']) * 100:+.1f} pts versus RAG "
+            f"({rag['accuracy']:.3f}). This is an observed gap, not headroom already recovered "
+            "or a strict upper bound; it may reflect retrieval quality and evidence use."
         )
     if base:
         dist = base["prediction_distribution"]
@@ -243,8 +244,9 @@ def render_report(rows: list[dict], cfg, extra: dict | None = None) -> str:
             "",
             "## Cost",
             "",
-            "- `s/answer` is measured on this machine with batch size "
-            f"{cfg.eval.batch_size}; RAG pays an extra retrieval lookup per question.",
+            "- `s/answer` measures generation time only, on this machine with batch size "
+            f"{cfg.eval.batch_size}; it excludes retrieval and prompt construction, so it is not "
+            "end-to-end RAG latency.",
             "- Fine-tuning is a one-off training cost paid upfront; RAG pays a per-query cost forever.",
             "",
             "## Practical reading",

@@ -112,7 +112,7 @@ results/<arm>_predictions.jsonl       per-question predictions, incl. retrieved 
 
 | config | target | what it does |
 | --- | --- | --- |
-| `configs/cpu_smoke.yaml` | laptop CPU | 1.2k training rows, 600-doc corpus, 150 test questions, 30 training steps |
+| `configs/cpu_smoke.yaml` | laptop CPU | 1.2k training rows, 600-doc corpus, 60 test questions, 40 training steps |
 | `configs/default.yaml` | single GPU | 20k training rows, 30k-doc corpus, 500 test questions, 1 epoch |
 
 ### If huggingface.co is unreachable
@@ -150,23 +150,21 @@ Reproduce with `make all CFG=configs/cpu_smoke.yaml`.
 
 ### Four things these numbers show
 
-**1. The oracle arm wins, so the knowledge is genuinely useful.** With the gold
-abstract in context the model reaches 0.683 accuracy against 0.617 with nothing at
-all. The domain knowledge helps — the only open question is how best to deliver it.
+**1. Gold evidence helps in this sample.** With the gold abstract in context the
+model reaches 0.683 accuracy, compared with 0.617 without evidence. This is an
+observed result for this small test, not a general estimate of the benefit.
 
-**2. Retrieval quality, not the generator, is the bottleneck.** `rag` (0.450) sits
-23 points below `rag_gold` (0.683). The corpus here is tiny and, by design, does
-not contain the abstract a test question came from, so the retriever hands over
-plausible-but-unrelated abstracts. Unrelated evidence is worse than no evidence:
-0.450 < 0.617. This is the single most common way a RAG system underperforms a
-plain prompt.
+**2. RAG underperforms both the no-evidence and gold-evidence runs in this smoke
+test.** `rag` scores 0.450, versus 0.617 for `prompt_only` and 0.683 for
+`rag_gold`. Retrieved evidence can be irrelevant, but the gap alone does not
+isolate retrieval as the cause: evidence use and prompt behavior may also
+contribute. The gold-evidence run is a reference condition, not a strict upper
+bound on model performance.
 
-**3. Fine-tuning changed behaviour, not knowledge.** Output-format compliance went
-from 0% to 100%: the base model never writes the `Verdict:` line it is asked for,
-the tuned model always does. Accuracy did *not* improve (0.567 vs 0.617). That is
-the expected result of 40 steps over a label-imbalanced set — the tuned model
-collapsed onto answering `yes` for 100% of questions. Behaviour is cheap to
-change; knowledge is not.
+**3. Fine-tuning improved format compliance but collapsed to one label.**
+Compliance went from 0% to 100%, while accuracy was 0.567 versus 0.617 for
+`prompt_only`; all SFT predictions were `yes`. This small run demonstrates a
+format-following change, not a reliable improvement in domain knowledge.
 
 **4. No arm ever predicted `maybe`.** All five collapse onto yes/no against a gold
 distribution of 57/30/13, which is why macro-F1 stays in the 0.24–0.47 range even
@@ -175,26 +173,26 @@ for the best arm. A single accuracy number would have hidden this.
 ### Where to take it next
 
 This is a smoke run — 0.5B parameters, 60 questions, 160 training examples. The
-methodology scales; these absolute numbers do not deserve to be quoted. The two
-knobs that matter most:
+methodology scales; these absolute numbers do not deserve to be quoted. Two
+experiments to try next:
 
-* **Starve the retriever less.** `data.corpus_size: 600 → 30000`. Everything about
-  the `rag` arm is currently retrieval-limited.
-* **Train on more than a format.** Remove `sft.max_steps` and use the full 20k
-  rows. 40 steps is enough to learn an output shape; it is nowhere near enough to
-  learn a domain.
+* **Increase retrieval coverage.** Try `data.corpus_size: 600 → 30000` and
+  evaluate retrieval relevance to test whether a larger corpus helps.
+* **Train beyond the smoke limit.** Remove `sft.max_steps` and use the full 20k
+  rows, while tracking per-class performance to see whether domain performance
+  improves without collapsing to one label.
 
 ## Reading the result
 
 The usual pattern, and what it implies:
 
-* **RAG wins on volatile facts.** Updating an index is cheap; retraining is not.
+* **RAG can suit volatile facts.** Updating an index is cheap; retraining is not.
   It also gives you citations for free, which matters in regulated domains.
-* **Fine-tuning wins on behaviour.** It makes a small model follow a strict output
-  format, adopt domain vocabulary, and stop hedging — without paying a prompt tax
-  on every request.
+* **Fine-tuning can help with behaviour.** It may make a small model follow a
+  stricter output format or adopt domain vocabulary without repeating lengthy
+  examples in every prompt.
 * **They are not substitutes.** Facts change, style does not. The `sft_rag` arm
-  usually lands on top: fine-tune the *behaviour*, retrieve the *facts*.
+  can combine the two approaches: fine-tune the *behaviour*, retrieve the *facts*.
 * **Small models collapse onto one verdict.** Watch the prediction distribution in
   `results/summary.json`; if `prompt_only` answers `yes` 80% of the time, its
   accuracy number reflects the label prior more than any real competence.
@@ -243,9 +241,9 @@ template. Good candidates:
 
 ## Limitations
 
-* The smoke configuration is sized for a laptop: with a 600-document corpus,
-  retrieval rarely finds the right abstract, so the `rag` arm is a *lower bound*
-  on what RAG can do. Scale `data.corpus_size` up to see it move.
+* The smoke configuration is sized for a laptop and uses a 600-document corpus.
+  Its RAG result is specific to this corpus and run; it should not be treated as
+  a general lower bound on RAG performance.
 * No arm, in any configuration tried, ever emitted `maybe`. A 0.5B model does not
   have the calibration to express genuine uncertainty, and 13% of the test set
   carries that label — a hard ceiling on macro-F1.
@@ -258,6 +256,31 @@ template. Good candidates:
 * ROUGE-L is lexical. For a stronger semantic check, swap in BERTScore.
 * One seed, one model size. Treat the numbers as a demonstration of the
   methodology, not as a published benchmark.
+
+## Future Improvements
+
+These items require new runs or additional evaluation; the current result files
+do not establish their outcomes:
+
+* **Strengthen the evaluation set.** Evaluate on the full held-out labeled split,
+  use a documented deterministic sampling strategy for smoke runs, and report
+  confidence intervals across multiple seeds.
+* **Address SFT label collapse.** Measure the training label distribution, try
+  stratified or class-balanced sampling and validation-based model selection,
+  then rerun all arms on the same untouched test set.
+* **Measure retrieval directly.** Add Recall@k/MRR or human relevance labels;
+  compare larger corpora, hybrid sparse+dense retrieval, reranking and top-k
+  settings before attributing the RAG gap to the retriever.
+* **Measure end-to-end cost.** Record retrieval, prompt preparation and
+  generation separately, including warm-up and repeated latency/throughput
+  measurements. The current `s/answer` values cover generation only.
+* **Keep data and result snapshots aligned.** The checked-in test file contains
+  100 rows, while the saved predictions contain 60 because evaluation was capped
+  by the smoke configuration. Regenerate and version a consistent snapshot, and
+  preserve per-arm run metadata when combining results.
+* **Validate accelerator runs.** Run the pipeline on a supported GPU and record
+  actual device placement, peak memory and throughput; the checked-in results
+  were produced on CPU.
 
 ---
 

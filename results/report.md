@@ -16,9 +16,9 @@ Model: `Qwen/Qwen2.5-0.5B-Instruct` &nbsp;|&nbsp; Dataset: `qiaojin/PubMedQA` (`
 
 - Retrieval over the base model moves accuracy by **-16.7 pts** (0.617 -> 0.450): knowledge supplied at inference time.
 - Closed-book fine-tuning moves accuracy by **-5.0 pts** (0.617 -> 0.567): knowledge pushed into the weights.
-- It also fixes *behaviour*: output-format compliance goes from 0% to 100%. The base model knows roughly what to say but not how to say it in the required shape.
+- Output-format compliance goes from 0% to 100%; this shows improved format adherence, not improved answer correctness.
 - Combining both reaches **0.567** versus 0.450 (RAG) and 0.567 (SFT).
-- The oracle arm (gold abstract given) reaches **0.683**, so the retriever currently recovers 23.3 pts of headroom: retrieval quality, not the generator, is the bottleneck.
+- With the gold abstract supplied, the oracle arm reaches **0.683**, +23.3 pts versus RAG (0.450). This is an observed gap, not headroom already recovered or a strict upper bound; it may reflect retrieval quality and evidence use.
 - Zero-shot prediction mix: yes 92%, no 8%, maybe 0% -- small models tend to collapse onto one verdict, which is why accuracy alone is not enough.
 
 ## Pitfalls hit while running this end-to-end
@@ -35,7 +35,7 @@ Things that cost real debugging time; each fix is in the code so you don't repea
 
 ## Cost
 
-- `s/answer` is measured on this machine with batch size 16; RAG pays an extra retrieval lookup per question.
+- `s/answer` measures generation time only, on this machine with batch size 16; it excludes retrieval and prompt construction, so it is not end-to-end RAG latency.
 - Fine-tuning is a one-off training cost paid upfront; RAG pays a per-query cost forever.
 
 ## Practical reading

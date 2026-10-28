@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VerticalLLM Lab — How the RAG Arm Works</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#1b1f24; --muted:#5c6672; --line:#e3e7ec; --card:#f7f9fb;
+    --accent:#2563eb; --accent-soft:#e8f0fe; --warn:#b45309; --warn-soft:#fef3c7;
+    --ok:#15803d; --ok-soft:#dcfce7; --code-bg:#0f172a; --code-fg:#e2e8f0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0d1117; --fg:#e6edf3; --muted:#9aa7b4; --line:#22292f; --card:#161b22;
+      --accent:#58a6ff; --accent-soft:#132639; --warn:#f0b429; --warn-soft:#3b2f10;
+      --ok:#4ac26b; --ok-soft:#0f2d1a; --code-bg:#010409; --code-fg:#c9d5e3;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0 auto;padding:32px 24px 64px;max-width:960px;
+       font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+       color:var(--fg);background:var(--bg)}
+  h1{font-size:28px;margin:0 0 6px;letter-spacing:-.02em}
+  h2{font-size:20px;margin:40px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:24px 0 8px}
+  .sub{color:var(--muted);margin:0 0 24px;font-size:14px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;
+       background:var(--card);padding:2px 5px;border-radius:4px;border:1px solid var(--line)}
+  pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:10px;
+      overflow-x:auto;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:12px 0}
+  pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--card);font-weight:600}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .card{border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:16px 0;background:var(--card)}
+  .tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;
+       background:var(--accent-soft);color:var(--accent);font-weight:600;margin-right:6px}
+  .tag.warn{background:var(--warn-soft);color:var(--warn)}
+  .tag.ok{background:var(--ok-soft);color:var(--ok)}
+  .step{border-left:3px solid var(--accent);padding:2px 0 2px 16px;margin:20px 0}
+  .step .who{font-size:12px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0;font-size:13px}
+  .flow span{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 11px}
+  .flow .arrow{background:none;border:none;color:var(--muted);padding:0 2px}
+  .note{border-left:3px solid var(--warn);background:var(--warn-soft);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px}
+  ul{padding-left:22px}li{margin:5px 0}
+</style>
+</head>
+<body>
+
+<h1>How the RAG Arm Is Implemented</h1>
+<p class="sub">Dense retrieval (bi-encoder + FAISS) &rarr; context assembly &rarr; the same LLM &rarr; structured parsing. Every step below points at the source file that implements it.</p>
+
+<div class="flow">
+  <span>corpus.jsonl<br><small>600 abstracts</small></span><span class="arrow">&rarr;</span>
+  <span>bge-small-en-v1.5<br><small>384-dim vectors</small></span><span class="arrow">&rarr;</span>
+  <span>FAISS IndexFlatIP<br><small>data/index/faiss.index</small></span><span class="arrow">&rarr;</span>
+  <span>top-2 search<br><small>cosine similarity</small></span><span class="arrow">&rarr;</span>
+  <span>prompt assembly<br><small>700 chars/doc cap</small></span><span class="arrow">&rarr;</span>
+  <span>Qwen2.5-0.5B<br><small>greedy decoding</small></span><span class="arrow">&rarr;</span>
+  <span>parse<br><small>Verdict / Conclusion</small></span>
+</div>
+
+<h2>1. Offline: turn the corpus into a searchable index</h2>
+
+<div class="step">
+  <h3>Step 0 &middot; Build the corpus and guard against leakage</h3>
+  <p class="who">scripts/prepare_data.py &rarr; src/vlab/data/pubmedqa.py &middot; dedup_corpus()</p>
+  <p>The corpus comes from PubMedQA's <code>pqa_artificial</code> subset (600 documents); the test set is held-out <code>pqa_labeled</code> (60 questions). The two <strong>must be isolated</strong>: any corpus document sharing a <code>pid</code> or an identical question with a test record is dropped. Otherwise retrieval could surface the very abstract the gold answer was derived from, and the RAG arm's score would be meaningless.</p>
+</div>
+
+<div class="step">
+  <h3>Step 1 &middot; Encode and persist the index</h3>
+  <p class="who">scripts/build_index.py &rarr; src/vlab/data/corpus.py &middot; Retriever.build()</p>
+<pre><code>texts = [f"{question}\n{context}" for row in corpus]          # title + abstract encoded together
+emb = SentenceTransformer("BAAI/bge-small-en-v1.5").encode(
+        texts, normalize_embeddings=True).astype("float32")   # unit vectors, 384 dims
+index = faiss.IndexFlatIP(dim)                                # flat inner-product index
+index.add(emb)                                                # 600 x 384 ~ 0.9 MB</code></pre>
+  <p>Two deliberate choices: vectors are <strong>L2-normalized</strong> so the inner product equals cosine similarity and scores read as 0&ndash;1 semantic affinity; and a <strong>flat index</strong> rather than IVF/HNSW, because at this scale exact search is fast and deterministic &mdash; reproducibility beats an approximate index for a controlled experiment.</p>
+</div>
+
+<h2>2. Online: retrieve and generate per question</h2>
+
+<div class="step">
+  <h3>Step 2 &middot; Query encoding and search</h3>
+  <p class="who">src/vlab/data/corpus.py &middot; Retriever.batch_retrieve()</p>
+<pre><code>vectors = encoder.encode(questions, normalize_embeddings=True)
+scores, ids = index.search(vectors, top_k=2)   # top_k from configs/*.yaml</code></pre>
+  <p>Questions and documents share the <strong>same bi-encoder</strong> (symmetric retrieval). Batched encoding plus one matrix search means retrieval for all 60 questions is nearly instantaneous &mdash; the wall-clock cost is entirely in generation.</p>
+</div>
+
+<div class="step">
+  <h3>Step 3 &middot; Assemble the prompt</h3>
+  <p class="who">src/vlab/arms.py &middot; build_prompts() &rarr; src/vlab/prompts.py &middot; rag_prompt()</p>
+<pre><code>texts = [clip(d["text"], cfg.retriever.max_doc_chars) for d in docs]   # 700 chars/doc
+prompt = rag_prompt(question, texts)                                   # attach context</code></pre>
+  <p>One <strong>hard-won lesson</strong> lives here: the first version placed the evidence between the question and the <code>Answer:</code> cue, and the 0.5B model lost the thread and emitted a single word (RAG accuracy <strong>0.283</strong>). Reordering to <em>instruction &rarr; format &rarr; question &rarr; evidence &rarr; <code>Answer:</code></em> &mdash; keeping the answer trigger last &mdash; lifted the same arm to <strong>0.450</strong>. This is the lost-in-the-middle effect, amplified in small models.</p>
+</div>
+
+<div class="step">
+  <h3>Step 4 &middot; Generate and parse</h3>
+  <p class="who">src/vlab/backends.py &middot; Generator.generate() &rarr; src/vlab/prompts.py &middot; parse_prediction()</p>
+  <p>All arms share one <code>Generator</code>: greedy decoding, <code>max_new_tokens=64</code>, batch 16, chat template applied. Only the <code>sft</code>/<code>sft_rag</code> arms additionally attach a LoRA adapter (<code>PeftModel.from_pretrained</code>, weights not merged), so the comparison isolates <em>where knowledge comes from</em> rather than decoding differences. Output parsing extracts <code>Verdict:</code> / <code>Conclusion:</code> with a keyword-matching fallback, because small models improvise.</p>
+</div>
+
+<h2>3. A real example (run, not fabricated)</h2>
+
+<div class="card">
+  <p><span class="tag">pid 21645374</span> <strong>Question:</strong> Do mitochondria play a role in remodelling lace plant leaves during programmed cell death?</p>
+  <p><strong>Retrieved documents</strong> (similarity scores look deceptively high):</p>
+  <table>
+    <tr><th>#</th><th>score</th><th>Document opening</th><th>Relevance</th></tr>
+    <tr><td class="num">1</td><td class="num">0.724</td><td>Does transcriptional profiling of <em>Arabidopsis</em> root hairs and pollen define an apical cell growth signature?</td><td>off-topic</td></tr>
+    <tr><td class="num">2</td><td class="num">0.721</td><td>Does pINK1 trigger autocatalytic activation of Parkin to specify cell fate decisions? (PINK1-Parkin regulates mitochondria)</td><td>weak</td></tr>
+  </table>
+  <p>The assembled prompt (~1.8k characters) goes to the model:</p>
+<pre><code>You are a biomedical research assistant. Answer the research question with a short
+verdict followed by a one-sentence conclusion.
+
+Respond in exactly two lines:
+Verdict: &lt;yes|no|maybe&gt;
+Conclusion: &lt;one sentence&gt;
+
+Question: Do mitochondria play a role in remodelling lace plant leaves during
+programmed cell death?
+
+Use the abstracts below as evidence.
+
+Evidence:
+[1] Does transcriptional profiling of Arabidopsis root hairs and pollen define an
+apical cell growth signature? Current views on the control of cell development are
+anchored on the notion that phenotypes are defined by networks of transcriptional
+activity. ...
+[2] Does pINK1 trigger autocatalytic activation of Parkin to specify cell fate
+decisions? The PINK1-Parkin pathway is known to play important roles in regulating
+mitochondria dynamics, motility, and quality control. ...
+
+Answer:</code></pre>
+  <p><strong>Model output:</strong> <code>No</code> &nbsp;&middot;&nbsp; <strong>Gold:</strong> <code>yes</code> &nbsp;<span class="tag warn">wrong</span></p>
+</div>
+
+<div class="note">
+  <strong>This example is the experiment's core finding.</strong> Biomedical abstracts are superficially similar to each other: across all 60 questions the top-1 cosine score never dropped below <strong>0.537</strong> (mean <strong>0.717</strong>), yet most retrieved documents were unrelated &mdash; the 600-document corpus simply does not contain the test abstracts. <strong>High similarity is not relevance</strong>, so RAG keeps injecting confident but irrelevant evidence.
+</div>
+
+<h2>4. Measured comparison</h2>
+
+<table>
+  <tr><th>Arm</th><th>Context contains</th><th class="num">accuracy</th><th class="num">macro-F1</th><th class="num">s/answer</th></tr>
+  <tr><td><code>prompt_only</code></td><td>nothing</td><td class="num">0.617</td><td class="num">0.363</td><td class="num">16.6</td></tr>
+  <tr><td><code>rag</code></td><td>FAISS top-2</td><td class="num">0.450</td><td class="num">0.319</td><td class="num">11.4</td></tr>
+  <tr><td><code>rag_gold</code></td><td>gold abstract (oracle)</td><td class="num"><strong>0.683</strong></td><td class="num"><strong>0.472</strong></td><td class="num">15.5</td></tr>
+</table>
+
+<p>Read the three numbers together:</p>
+<ul>
+  <li><strong>The evidence itself works</strong> &mdash; the oracle arm reaches 0.683 &gt; prompt_only 0.617: putting the right knowledge in context does help.</li>
+  <li><strong>The bottleneck is retrieval, not the generator</strong> &mdash; real RAG gets 0.450, below no-evidence prompting. The 23.3-pt gap to the oracle is entirely retrieval missing the right document.</li>
+  <li><strong>Irrelevant evidence is worse than no evidence</strong> &mdash; it anchors the model on a confident but wrong trail.</li>
+</ul>
+
+<h2>5. To make RAG actually work here</h2>
+<table>
+  <tr><th>Knob</th><th>Current (cpu_smoke)</th><th>Suggested</th></tr>
+  <tr><td><code>data.corpus_size</code></td><td>600</td><td>30000+: the corpus must cover the test questions' sources before retrieval can find them</td></tr>
+  <tr><td><code>retriever.top_k</code></td><td>2</td><td>5&ndash;10, plus a cross-encoder reranker to pull the right doc from the top-10 to the front</td></tr>
+  <tr><td><code>retriever.max_doc_chars</code></td><td>700</td><td>small-model context is precious; prefer fewer, better documents</td></tr>
+  <tr><td>similarity threshold</td><td>none</td><td>gate on <code>score &lt; 0.5 &rarr; inject nothing</code>, degrading gracefully to prompt_only</td></tr>
+  <tr><td>retrieval unit</td><td>full abstract</td><td>chunk by sentence/paragraph for much higher hit rates</td></tr>
+</table>
+
+</body>
+</html>

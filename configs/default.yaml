@@ -1,0 +1,58 @@
+# VerticalLLM Lab - default configuration (aimed at a single GPU, ~8GB+ VRAM).
+seed: 42
+device: auto
+hf_endpoint: ""   # e.g. https://hf-mirror.com if huggingface.co is unreachable
+
+paths:
+  root: .
+  data: data
+  checkpoints: checkpoints
+  results: results
+
+data:
+  dataset_name: qiaojin/PubMedQA
+  train_source: pqa_artificial
+  eval_source: pqa_labeled
+  max_train_samples: 20000
+  max_eval_samples: 500
+  corpus_size: 30000
+  seed: 42
+
+model:
+  name: Qwen/Qwen2.5-0.5B-Instruct
+  max_new_tokens: 96
+  temperature: 0.0
+  top_p: 1.0
+  dtype: float32
+  attn_implementation: sdpa
+  use_chat_template: true
+
+retriever:
+  embedding_model: BAAI/bge-small-en-v1.5
+  top_k: 3
+  batch_size: 64
+  normalize: true
+  max_doc_chars: 1200
+
+sft:
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj]
+  train_with_context: false
+  num_train_epochs: 1.0
+  per_device_train_batch_size: 8
+  gradient_accumulation_steps: 2
+  learning_rate: 1.0e-4
+  weight_decay: 0.0
+  warmup_ratio: 0.03
+  lr_scheduler_type: cosine
+  max_length: 512
+  logging_steps: 10
+  save_total_limit: 1
+  eval_fraction: 0.05
+  max_steps: -1
+
+eval:
+  batch_size: 8
+  max_new_tokens: 96

@@ -1,0 +1,278 @@
+{
+  "rows": [
+    {
+      "n": 60,
+      "accuracy": 0.6167,
+      "macro_f1": 0.3631,
+      "rouge_l": 0.1817,
+      "format_compliance": 0.0,
+      "prediction_distribution": {
+        "yes": 0.9167,
+        "no": 0.0833,
+        "maybe": 0.0
+      },
+      "gold_distribution": {
+        "yes": 0.5667,
+        "no": 0.3,
+        "maybe": 0.1333
+      },
+      "per_class": {
+        "yes": {
+          "precision": 0.6,
+          "recall": 0.9706,
+          "f1": 0.7416,
+          "support": 34
+        },
+        "no": {
+          "precision": 0.8,
+          "recall": 0.2222,
+          "f1": 0.3478,
+          "support": 18
+        },
+        "maybe": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 8
+        }
+      },
+      "arm": "prompt_only",
+      "total_seconds": 993.2,
+      "seconds_per_answer": 16.553
+    },
+    {
+      "n": 60,
+      "accuracy": 0.45,
+      "macro_f1": 0.3194,
+      "rouge_l": 0.0482,
+      "format_compliance": 0.0,
+      "prediction_distribution": {
+        "yes": 0.2333,
+        "no": 0.7667,
+        "maybe": 0.0
+      },
+      "gold_distribution": {
+        "yes": 0.5667,
+        "no": 0.3,
+        "maybe": 0.1333
+      },
+      "per_class": {
+        "yes": {
+          "precision": 0.7857,
+          "recall": 0.3235,
+          "f1": 0.4583,
+          "support": 34
+        },
+        "no": {
+          "precision": 0.3478,
+          "recall": 0.8889,
+          "f1": 0.5,
+          "support": 18
+        },
+        "maybe": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 8
+        }
+      },
+      "arm": "rag",
+      "total_seconds": 682.61,
+      "seconds_per_answer": 11.377
+    },
+    {
+      "n": 60,
+      "accuracy": 0.5667,
+      "macro_f1": 0.2411,
+      "rouge_l": 0.1829,
+      "format_compliance": 1.0,
+      "prediction_distribution": {
+        "yes": 1.0,
+        "no": 0.0,
+        "maybe": 0.0
+      },
+      "gold_distribution": {
+        "yes": 0.5667,
+        "no": 0.3,
+        "maybe": 0.1333
+      },
+      "per_class": {
+        "yes": {
+          "precision": 0.5667,
+          "recall": 1.0,
+          "f1": 0.7234,
+          "support": 34
+        },
+        "no": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 18
+        },
+        "maybe": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 8
+        }
+      },
+      "arm": "sft",
+      "total_seconds": 1053.8,
+      "seconds_per_answer": 17.563
+    },
+    {
+      "n": 60,
+      "accuracy": 0.5667,
+      "macro_f1": 0.2411,
+      "rouge_l": 0.1602,
+      "format_compliance": 1.0,
+      "prediction_distribution": {
+        "yes": 1.0,
+        "no": 0.0,
+        "maybe": 0.0
+      },
+      "gold_distribution": {
+        "yes": 0.5667,
+        "no": 0.3,
+        "maybe": 0.1333
+      },
+      "per_class": {
+        "yes": {
+          "precision": 0.5667,
+          "recall": 1.0,
+          "f1": 0.7234,
+          "support": 34
+        },
+        "no": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 18
+        },
+        "maybe": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 8
+        }
+      },
+      "arm": "sft_rag",
+      "total_seconds": 997.8,
+      "seconds_per_answer": 16.63
+    },
+    {
+      "n": 60,
+      "accuracy": 0.6833,
+      "macro_f1": 0.4721,
+      "rouge_l": 0.1318,
+      "format_compliance": 0.0,
+      "prediction_distribution": {
+        "yes": 0.7333,
+        "no": 0.2667,
+        "maybe": 0.0
+      },
+      "gold_distribution": {
+        "yes": 0.5667,
+        "no": 0.3,
+        "maybe": 0.1333
+      },
+      "per_class": {
+        "yes": {
+          "precision": 0.6818,
+          "recall": 0.8824,
+          "f1": 0.7692,
+          "support": 34
+        },
+        "no": {
+          "precision": 0.6875,
+          "recall": 0.6111,
+          "f1": 0.6471,
+          "support": 18
+        },
+        "maybe": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 8
+        }
+      },
+      "arm": "rag_gold",
+      "total_seconds": 927.19,
+      "seconds_per_answer": 15.453
+    }
+  ],
+  "metadata": {
+    "generated_at": "2026-10-28 00:00:19",
+    "device": "cpu",
+    "arms": [
+      "sft_rag"
+    ],
+    "test_size": 60,
+    "config": {
+      "seed": 42,
+      "device": "cpu",
+      "hf_endpoint": "https://hf-mirror.com",
+      "paths": {
+        "root": ".",
+        "data": "data",
+        "checkpoints": "checkpoints",
+        "results": "results"
+      },
+      "data": {
+        "dataset_name": "qiaojin/PubMedQA",
+        "train_source": "pqa_artificial",
+        "eval_source": "pqa_labeled",
+        "max_train_samples": 1200,
+        "max_eval_samples": 60,
+        "corpus_size": 600,
+        "dev_size": 100,
+        "seed": 42
+      },
+      "model": {
+        "name": "Qwen/Qwen2.5-0.5B-Instruct",
+        "max_new_tokens": 64,
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "dtype": "float32",
+        "attn_implementation": "sdpa",
+        "use_chat_template": true
+      },
+      "retriever": {
+        "embedding_model": "BAAI/bge-small-en-v1.5",
+        "top_k": 2,
+        "batch_size": 32,
+        "normalize": true,
+        "exclude_gold_documents": true,
+        "max_doc_chars": 700
+      },
+      "sft": {
+        "lora_r": 8,
+        "lora_alpha": 16,
+        "lora_dropout": 0.05,
+        "target_modules": [
+          "q_proj",
+          "k_proj",
+          "v_proj",
+          "o_proj"
+        ],
+        "train_with_context": false,
+        "num_train_epochs": 1.0,
+        "per_device_train_batch_size": 2,
+        "gradient_accumulation_steps": 2,
+        "learning_rate": 0.0002,
+        "weight_decay": 0.0,
+        "warmup_ratio": 0.1,
+        "lr_scheduler_type": "cosine",
+        "max_length": 384,
+        "logging_steps": 5,
+        "save_total_limit": 1,
+        "eval_fraction": 0.0,
+        "max_steps": 40
+      },
+      "eval": {
+        "batch_size": 16,
+        "max_new_tokens": 64
+      }
+    }
+  }
+}
